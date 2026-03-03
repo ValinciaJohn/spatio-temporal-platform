@@ -1,0 +1,26 @@
+# Core data
+pandas>=1.5.0
+numpy>=1.23.0
+scikit-learn>=1.2.0
+scipy>=1.10.0
+
+# Spatial / mapping
+geopandas>=0.12.0
+folium>=0.14.0
+
+# Clustering
+hdbscan>=0.8.29
+
+# Time series / trajectory
+dtaidistance>=2.3.10
+statsmodels>=0.14.0
+
+# Kafka streaming
+kafka-python>=2.0.2
+
+# Dashboard
+plotly>=5.13.0
+dash>=2.9.0
+
+# Testing
+pytest>=7.2.0
