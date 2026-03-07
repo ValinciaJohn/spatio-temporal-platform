@@ -42,7 +42,7 @@ def temporal_component(p1: TrafficPoint, p2: TrafficPoint):
 
     time_gap = abs(p1.timestamp - p2.timestamp)
 
-    return min(time_gap / MAX_GAP_SEC, 1.0)
+    return min(time_gap / MAX_GAP_SEC*4, 1.0)
 
 def multivariate_component(p1: TrafficPoint, p2: TrafficPoint):
     """
