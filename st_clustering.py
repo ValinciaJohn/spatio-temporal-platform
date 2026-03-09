@@ -4,14 +4,16 @@ from composite_distance import composite_distance
 from config import EPS, MIN_PTS
 import time
 
-def region_query(points: List[TrafficPoint], point: TrafficPoint, eps: float):
-    """
-    Find all neighbors of a point within eps composite distance.
-    """
+def region_query(points, point, eps):
 
     neighbors = []
 
     for p in points:
+
+        # Quick spatial bounding box check (~1 km)
+        if abs(point.lat - p.lat) > 0.01 or abs(point.lon - p.lon) > 0.01:
+            continue
+
         if composite_distance(point, p) <= eps:
             neighbors.append(p)
 
@@ -38,9 +40,11 @@ def expand_cluster(points: List[TrafficPoint],
             visited.add(current.id)
 
             current_neighbors = region_query(points, current, eps)
-
+                
             if len(current_neighbors) >= min_pts:
-                queue.extend(current_neighbors)
+                for n in current_neighbors:
+                    if n.cluster_id == -1:
+                        queue.append(n)
 
         if current.cluster_id == -1:
             current.cluster_id = cluster_id
