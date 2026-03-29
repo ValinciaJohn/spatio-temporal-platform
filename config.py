@@ -9,8 +9,8 @@ KAFKA_GROUP_ID    = os.getenv('KAFKA_GROUP_ID',  'mobility_pipeline')
 KAFKA_BATCH_SIZE  = int(os.getenv('KAFKA_BATCH_SIZE', '200'))
 
 # ── CLUSTERING ─────────────────────────────────────────────────────────────
-EPS               = float(os.getenv('EPS',       '0.15'))
-MIN_PTS           = int(os.getenv('MIN_PTS',     '5'))
+EPS               = float(os.getenv('EPS',       '0.35'))
+MIN_PTS           = int(os.getenv('MIN_PTS',     '3'))
 W_SPATIAL         = float(os.getenv('W_SPATIAL', '0.4'))
 W_TEMPORAL        = float(os.getenv('W_TEMPORAL','0.3'))
 W_MULTIVAR        = float(os.getenv('W_MULTIVAR','0.3'))
