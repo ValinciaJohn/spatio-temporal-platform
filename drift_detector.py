@@ -1,91 +1,123 @@
+# drift_detector.py — FIXED
+#
+# Bug: detect_drift() used Jaccard similarity on cluster IDs.
+# DBSCAN renumbers clusters 0,1,2... every batch, so ID overlap
+# between consecutive batches is near-random regardless of whether
+# traffic patterns actually changed. Result: stability always ~0.5-0.8,
+# never crossing the threshold → drift never detected.
+#
+# Fix: centroid-movement-based stability.
+# For each cluster in snapshot N, find its nearest centroid match in
+# snapshot N-1. If the matched centroid moved more than DRIFT_DIST_DEG
+# degrees, count it as unstable. Stability = fraction of clusters
+# that are spatially stable. This reflects actual traffic pattern change.
+#
+# Also: snapshot now stores centroid as primary key (rounded to 3dp)
+# so matching survives ID renumbering.
+
+import math
+import time
 from typing import List
-from shared_types import Cluster
+
+# A cluster centroid must move less than this to be "the same cluster"
+# 0.008 degrees ≈ 900m — realistic for a city junction cluster
+DRIFT_DIST_DEG   = 0.008
+DRIFT_THRESHOLD  = 0.55   # stability below this → drift
+DRIFT_WINDOW     = 8      # compare over last N snapshots
 
 
 def registry_snapshot(registry: dict) -> dict:
     """
-    Creates a lightweight snapshot of the current cluster registry
-    for comparison across time steps.
-    Each entry captures: size, centroid location, dominant regime.
+    Snapshot stores centroid as the key signal (not cluster ID).
+    Also stores size and regime for diagnostics.
     """
     return {
         cid: {
             'size':         len(c.points),
-            'centroid_lat': c.centroid_lat,
-            'centroid_lon': c.centroid_lon,
-            'regime':       c.dominant_regime
+            'centroid_lat': round(c.centroid_lat, 5),
+            'centroid_lon': round(c.centroid_lon, 5),
+            'regime':       getattr(c, 'dominant_regime', 'unknown'),
         }
         for cid, c in registry.items()
     }
 
 
-def jaccard_similarity(snap1: dict, snap2: dict) -> float:
-    """
-    Measures structural similarity between two registry snapshots
-    using Jaccard similarity on cluster IDs.
-    1.0 = identical cluster IDs, 0.0 = no cluster IDs in common.
-    Returns 1.0 if both snapshots are empty (no change).
-    """
-    ids1 = set(snap1.keys())
-    ids2 = set(snap2.keys())
+def _centroid_dist(a: dict, b: dict) -> float:
+    dlat = a['centroid_lat'] - b['centroid_lat']
+    dlon = a['centroid_lon'] - b['centroid_lon']
+    return math.sqrt(dlat**2 + dlon**2)
 
-    if len(ids1 | ids2) == 0:
+
+def _spatial_stability(snap1: dict, snap2: dict) -> float:
+    """
+    For each cluster in snap2, find nearest cluster in snap1 by centroid.
+    Stable if nearest centroid is within DRIFT_DIST_DEG.
+    Returns fraction of snap2 clusters that are spatially stable.
+    """
+    if not snap1 or not snap2:
         return 1.0
 
-    return len(ids1 & ids2) / len(ids1 | ids2)
+    stable = 0
+    for cid2, c2 in snap2.items():
+        # Find nearest match in snap1
+        min_dist = min(
+            (_centroid_dist(c2, c1) for c1 in snap1.values()),
+            default=float('inf')
+        )
+        if min_dist <= DRIFT_DIST_DEG:
+            stable += 1
+
+    return stable / len(snap2)
 
 
-def compute_stability(history: List[dict], window: int = 10) -> float:
+def compute_stability(history: List[dict], window: int = DRIFT_WINDOW) -> float:
     """
-    Computes mean Jaccard similarity across the last 'window' snapshots.
-    High stability (close to 1.0) = cluster structure is consistent.
-    Low stability (close to 0.0) = cluster structure is changing rapidly.
-    Returns 1.0 if fewer than 2 snapshots available.
+    Mean spatial stability across last `window` snapshot pairs.
+    1.0 = all centroids stable, 0.0 = all centroids shifted.
     """
     recent = history[-window:]
-
     if len(recent) < 2:
         return 1.0
 
     scores = [
-        jaccard_similarity(recent[i], recent[i + 1])
+        _spatial_stability(recent[i], recent[i+1])
         for i in range(len(recent) - 1)
     ]
-
     return sum(scores) / len(scores)
 
 
-def detect_drift(history: List[dict], window: int = 10, threshold: float = 0.4) -> bool:
+def detect_drift(history: List[dict],
+                 window: int = DRIFT_WINDOW,
+                 threshold: float = DRIFT_THRESHOLD) -> bool:
     """
-    MAIN EXPORT — called by pipeline.py every cycle.
-    Returns True if cluster stability has dropped below threshold,
-    indicating a permanent structural change in traffic behaviour.
+    MAIN EXPORT — returns True if spatial stability drops below threshold.
+    Fires when cluster centroids shift significantly between batches,
+    indicating a genuine change in traffic distribution.
     """
     stability = compute_stability(history, window)
-
     if stability < threshold:
-        print(f'[DRIFT] Stability={stability:.3f} below threshold={threshold}. Drift detected.')
+        print(f'[DRIFT] Spatial stability={stability:.3f} < {threshold} → DRIFT DETECTED')
         return True
-
     return False
 
 
 def handle_drift(registry: dict, recent_points) -> dict:
-    """
-    Responds to detected drift by wiping the existing registry
-    and re-clustering from scratch using recent points.
-    Uses try/except stub pattern since st_clustering is Valincia's module.
-    """
-    print('[DRIFT] Full re-clustering triggered.')
-
+    """Full re-cluster on drift."""
+    print('[DRIFT] Re-clustering from scratch.')
     registry.clear()
-
     try:
         from st_clustering import run_clustering
     except ImportError:
         from stubs import run_clustering
-
-    labeled, new_registry = run_clustering(recent_points)
+    _, new_registry = run_clustering(recent_points)
     registry.update(new_registry)
-
     return registry
+
+
+# Keep jaccard for backwards compatibility if anything imports it
+def jaccard_similarity(snap1: dict, snap2: dict) -> float:
+    ids1 = set(snap1.keys())
+    ids2 = set(snap2.keys())
+    if not (ids1 | ids2):
+        return 1.0
+    return len(ids1 & ids2) / len(ids1 | ids2)

@@ -1,6 +1,22 @@
+# trajectory_miner.py — FIXED
+#
+# Bug fixed 1: build_trajectories used a 60-second gap threshold.
+#   Synthetic data timestamps are random.uniform(0, 86400) so consecutive
+#   sorted points are ~17 seconds apart on average — but occasionally
+#   hundreds of seconds apart, splitting every trajectory to length 1
+#   and discarding all of them (< 3 points check).
+#   Fix: raise gap threshold to 3600 seconds (1 hour), matching the
+#   hourly batch granularity of the data.
+#
+# Bug fixed 2: when DTW is unavailable (dtaidistance not installed),
+#   detect_anomalous_trajectory returned False for everything.
+#   Fix: stat-based fallback — flag a trajectory as anomalous if its
+#   mean speed deviates more than 2 standard deviations from the
+#   cluster trajectory mean.
+
 from typing import List
 from shared_types import TrafficPoint, Cluster
-
+import math
 
 try:
     from dtaidistance import dtw
@@ -8,146 +24,140 @@ try:
     DTW_AVAILABLE = True
 except ImportError:
     DTW_AVAILABLE = False
-    print('[trajectory_miner] WARNING: dtaidistance not installed. DTW will return inf.')
+    print('[trajectory_miner] dtaidistance not installed — using stat-based anomaly fallback.')
 
 
-def build_trajectories(cluster: Cluster) -> List[List[TrafficPoint]]:
+# ── Trajectory building ───────────────────────────────────────────────────────
+
+def build_trajectories(cluster: Cluster,
+                       gap_seconds: float = 3600.0,   # FIXED: was 60
+                       min_len: int = 3) -> List[List[TrafficPoint]]:
     """
-    Groups cluster points into individual trajectories.
-    Sorts by timestamp, then starts a new trajectory if the
-    time gap between consecutive points exceeds 60 seconds.
-    Discards trajectories with fewer than 3 points.
-    Returns a list of trajectories (each is a List[TrafficPoint]).
+    Group cluster points into trajectories by timestamp.
+    A new trajectory starts when the time gap between consecutive
+    points exceeds gap_seconds.
+    Trajectories shorter than min_len points are discarded.
     """
     if not cluster.points:
         return []
 
-    sorted_points = sorted(cluster.points, key=lambda p: p.timestamp)
-
+    sorted_pts = sorted(cluster.points, key=lambda p: p.timestamp)
     trajectories = []
-    current_traj = [sorted_points[0]]
+    current = [sorted_pts[0]]
 
-    for i in range(1, len(sorted_points)):
-        p1 = sorted_points[i - 1]
-        p2 = sorted_points[i]
-
-        time_gap = abs(p2.timestamp - p1.timestamp)
-
-        if time_gap > 60:
-            # Start a new trajectory
-            if len(current_traj) >= 3:
-                trajectories.append(current_traj)
-            current_traj = [p2]
+    for i in range(1, len(sorted_pts)):
+        gap = abs(sorted_pts[i].timestamp - sorted_pts[i - 1].timestamp)
+        if gap > gap_seconds:
+            if len(current) >= min_len:
+                trajectories.append(current)
+            current = [sorted_pts[i]]
         else:
-            current_traj.append(p2)
+            current.append(sorted_pts[i])
 
-    # Don't forget the last trajectory
-    if len(current_traj) >= 3:
-        trajectories.append(current_traj)
+    if len(current) >= min_len:
+        trajectories.append(current)
 
     return trajectories
 
 
 def to_speed_series(traj: List[TrafficPoint]) -> List[float]:
-    """
-    Extracts the speed values from a trajectory as a plain list of floats.
-    Used as input to DTW distance calculation.
-    """
     return [p.speed for p in traj]
 
 
+# ── DTW distance ──────────────────────────────────────────────────────────────
+
 def dtw_distance(s1: List[float], s2: List[float]) -> float:
-    """
-    Computes Dynamic Time Warping distance between two speed series.
-    Returns float('inf') if either series is empty or dtaidistance
-    is not installed.
-    """
-    if len(s1) == 0 or len(s2) == 0:
+    if not s1 or not s2:
         return float('inf')
+    if DTW_AVAILABLE:
+        return dtw.distance(
+            np.array(s1, dtype=float),
+            np.array(s2, dtype=float)
+        )
+    # Stat fallback: absolute difference of means
+    return abs(sum(s1) / len(s1) - sum(s2) / len(s2))
 
-    if not DTW_AVAILABLE:
-        return float('inf')
 
-    return dtw.distance(
-        np.array(s1, dtype=float),
-        np.array(s2, dtype=float)
-    )
+# ── Frequent route mining ─────────────────────────────────────────────────────
 
-
-def find_frequent_routes(
-    trajs: List[List[TrafficPoint]],
-    min_support: float = 0.3
-) -> List[List[TrafficPoint]]:
-    """
-    Finds trajectories that are 'similar' to at least min_support
-    fraction of all other trajectories, using DTW distance threshold of 30.0.
-    Returns the list of frequent trajectories.
-    """
+def find_frequent_routes(trajs: List[List[TrafficPoint]],
+                         min_support: float = 0.3,
+                         dtw_threshold: float = 30.0) -> List[List[TrafficPoint]]:
     if len(trajs) < 2:
-        return []
+        return trajs   # treat all as "normal" when too few to compare
 
+    total    = len(trajs)
     frequent = []
-    total = len(trajs)
 
     for i, t in enumerate(trajs):
-        s1 = to_speed_series(t)
-        count = 0
-
-        for j, other in enumerate(trajs):
-            if i == j:
-                continue
-            s2 = to_speed_series(other)
-            if dtw_distance(s1, s2) < 30.0:
-                count += 1
-
+        s1    = to_speed_series(t)
+        count = sum(
+            1 for j, other in enumerate(trajs)
+            if i != j and dtw_distance(s1, to_speed_series(other)) < dtw_threshold
+        )
         if count / total >= min_support:
             frequent.append(t)
+
+    # If nothing qualifies as frequent, treat the median-speed trajectory
+    # as the single normal reference so anomaly detection can still fire.
+    if not frequent and trajs:
+        means    = [(sum(p.speed for p in t) / len(t), t) for t in trajs]
+        means.sort(key=lambda x: x[0])
+        frequent = [means[len(means) // 2][1]]
 
     return frequent
 
 
-def detect_anomalous_trajectory(
-    traj: List[TrafficPoint],
-    normal_trajs: List[List[TrafficPoint]],
-    threshold: float = 50.0
-) -> bool:
+# ── Anomaly detection ─────────────────────────────────────────────────────────
+
+def _stat_anomaly(traj: List[TrafficPoint],
+                  normal_trajs: List[List[TrafficPoint]],
+                  z_thresh: float = 2.0) -> bool:
     """
-    Flags a trajectory as anomalous if its minimum DTW distance
-    to all normal (frequent) trajectories exceeds the threshold.
-    Sets traj[-1].is_anomaly = True if anomalous.
-    Returns True if anomalous, False otherwise.
+    Fallback: flag trajectory as anomalous if its mean speed is more than
+    z_thresh standard deviations from the distribution of normal traj means.
     """
-    if len(normal_trajs) == 0:
+    normal_means = [sum(p.speed for p in t) / len(t) for t in normal_trajs if t]
+    if not normal_means:
+        return False
+    mu  = sum(normal_means) / len(normal_means)
+    var = sum((x - mu) ** 2 for x in normal_means) / len(normal_means)
+    sd  = math.sqrt(var) if var > 0 else 1.0
+    traj_mean = sum(p.speed for p in traj) / len(traj)
+    return abs(traj_mean - mu) > z_thresh * sd
+
+
+def detect_anomalous_trajectory(traj: List[TrafficPoint],
+                                 normal_trajs: List[List[TrafficPoint]],
+                                 dtw_threshold: float = 50.0) -> bool:
+    if not normal_trajs:
         return False
 
     s1 = to_speed_series(traj)
 
-    distances = [
-        dtw_distance(s1, to_speed_series(n))
-        for n in normal_trajs
-    ]
+    if DTW_AVAILABLE:
+        distances = [dtw_distance(s1, to_speed_series(n)) for n in normal_trajs]
+        is_anom   = min(distances) > dtw_threshold
+    else:
+        is_anom = _stat_anomaly(traj, normal_trajs)
 
-    min_dist = min(distances)
-
-    if min_dist > threshold:
+    if is_anom:
         traj[-1].is_anomaly = True
-        return True
+    return is_anom
 
-    return False
 
+# ── Main export ───────────────────────────────────────────────────────────────
 
 def mine_trajectories(cluster: Cluster) -> dict:
     """
     MAIN EXPORT — called by pipeline.py for each cluster.
-    Builds trajectories, finds frequent routes, detects anomalies.
-    Returns a dict with frequent_routes, anomalies, trajectory_count.
     """
-    trajs = build_trajectories(cluster)
-    freq = find_frequent_routes(trajs)
+    trajs     = build_trajectories(cluster)
+    freq      = find_frequent_routes(trajs)
     anomalies = [t for t in trajs if detect_anomalous_trajectory(t, freq)]
 
     return {
-        'frequent_routes': freq,
-        'anomalies': anomalies,
-        'trajectory_count': len(trajs)
+        'frequent_routes':    freq,
+        'anomalies':          anomalies,
+        'trajectory_count':   len(trajs),
     }

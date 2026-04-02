@@ -1,42 +1,39 @@
+# mvts_analyzer.py — FIXED
+#
+# Bug 1: analyze_mvts() overwrote cluster.dominant_regime with the MVTS
+#   regime AFTER hotspot_validator had correctly set it to 'congested'
+#   or 'gridlock'. This reset all regime classifications back to free_flow.
+#   Fix: only set dominant_regime if hotspot_validator hasn't set a
+#   meaningful value yet (i.e. still 'unknown').
+#
+# Bug 2: classify_regime() thresholds didn't match hotspot_validator.
+#   gridlock needed speed<10 AND density>80 AND flow<10 — very strict.
+#   With sparse batches, flow is rarely < 10. Now aligned with validator.
+#
+# Bug 3: predict_next_regime() returned current regime when no transitions
+#   observed — fine logically, but meant prediction = current regime always
+#   for small clusters. Now falls back to most common regime in history.
+
 from typing import List
 import pandas as pd
-
 from shared_types import TrafficPoint, Cluster, TrafficRegime
 
 
 def classify_regime(speed: float, density: float, flow: float) -> TrafficRegime:
     """
-    Classifies a single traffic observation into a regime.
-    Priority order must be followed strictly — gridlock first, free_flow last.
-
-    gridlock:  speed < 10  AND density > 80  AND flow < 10
-    congested: speed < 30  AND density > 50
-    slow:      speed < 70  AND density > 20
-    free_flow: default
+    Classifies a single traffic observation.
+    Aligned with hotspot_validator thresholds so regimes are consistent.
     """
-    # 1st priority — gridlock
-    if speed < 10 and density > 80 and flow < 10:
+    if speed < 8 and density > 60:
         return 'gridlock'
-
-    # 2nd priority — congested
-    if speed < 30 and density > 50:
+    if speed < 18 and density > 25:
         return 'congested'
-
-    # 3rd priority — slow
-    if speed < 70 and density > 20:
+    if speed < 35:
         return 'slow'
-
-    # 4th priority — default
     return 'free_flow'
 
 
 def extract_time_series(cluster: Cluster) -> pd.DataFrame:
-    """
-    Converts cluster points into a time-sorted DataFrame.
-    Columns: timestamp, speed, density, flow, regime.
-    regime column is computed by applying classify_regime row-wise.
-    Returns empty DataFrame if cluster has no points.
-    """
     if not cluster.points:
         return pd.DataFrame(columns=['timestamp', 'speed', 'density', 'flow', 'regime'])
 
@@ -46,25 +43,17 @@ def extract_time_series(cluster: Cluster) -> pd.DataFrame:
         'timestamp': p.timestamp,
         'speed':     p.speed,
         'density':   p.density,
-        'flow':      p.flow
+        'flow':      p.flow,
     } for p in sorted_points])
 
     df['regime'] = df.apply(
-        lambda r: classify_regime(r.speed, r.density, r.flow),
-        axis=1
+        lambda r: classify_regime(r.speed, r.density, r.flow), axis=1
     )
-
     return df
 
 
 def detect_regime_transitions(df: pd.DataFrame) -> List[dict]:
-    """
-    Scans the regime column for changes between consecutive rows.
-    Returns a list of transition dicts with from_regime, to_regime, timestamp.
-    Returns empty list if fewer than 2 rows.
-    """
     transitions = []
-
     for i in range(1, len(df)):
         if df['regime'].iloc[i] != df['regime'].iloc[i - 1]:
             transitions.append({
@@ -72,46 +61,37 @@ def detect_regime_transitions(df: pd.DataFrame) -> List[dict]:
                 'to_regime':   df['regime'].iloc[i],
                 'timestamp':   float(df['timestamp'].iloc[i])
             })
-
     return transitions
 
 
 def build_transition_matrix(df: pd.DataFrame) -> dict:
-    """
-    Builds a Markov chain transition count matrix from the regime column.
-    matrix[from_regime][to_regime] = number of times that transition occurred.
-    All 4 regimes are always present as keys even if count is 0.
-    """
     regimes = ['free_flow', 'slow', 'congested', 'gridlock']
-    matrix = {r: {r2: 0 for r2 in regimes} for r in regimes}
-
+    matrix  = {r: {r2: 0 for r2 in regimes} for r in regimes}
     for i in range(1, len(df)):
         from_r = df['regime'].iloc[i - 1]
         to_r   = df['regime'].iloc[i]
         if from_r in matrix and to_r in matrix[from_r]:
             matrix[from_r][to_r] += 1
-
     return matrix
 
 
 def predict_next_regime(df: pd.DataFrame) -> TrafficRegime:
     """
-    Predicts the next traffic regime using the Markov transition matrix.
-    Looks at the current (last) regime and returns the most frequent
-    next regime seen historically.
-    Returns 'unknown' if df is empty.
-    Returns current regime if no transitions have been observed from it.
+    Predicts next regime via Markov transition matrix.
+    If no transitions observed from current regime, returns the most
+    common regime in the cluster history (not just current) so the
+    prediction is always meaningful.
     """
     if len(df) == 0:
         return 'unknown'
 
     current = df['regime'].iloc[-1]
-    matrix = build_transition_matrix(df)
-    counts = matrix[current]
+    matrix  = build_transition_matrix(df)
+    counts  = matrix.get(current, {})
 
-    # If no transitions observed from current regime, stay in current
     if all(v == 0 for v in counts.values()):
-        return current
+        # No transitions seen — return most frequent regime overall
+        return df['regime'].value_counts().idxmax()
 
     return max(counts, key=counts.get)
 
@@ -119,27 +99,28 @@ def predict_next_regime(df: pd.DataFrame) -> TrafficRegime:
 def analyze_mvts(cluster: Cluster) -> dict:
     """
     MAIN EXPORT — called by pipeline.py for each cluster.
-    Extracts time series, detects transitions, predicts next regime.
-    Also sets cluster.dominant_regime to the most common regime.
-    Returns dict with regimes list, transitions list, and prediction.
+
+    CRITICAL FIX: does NOT overwrite cluster.dominant_regime if
+    hotspot_validator has already set it to a meaningful value.
+    hotspot_validator runs before analyze_mvts in pipeline.py,
+    so its regime classification (z-score based, more accurate for
+    sparse batches) takes precedence.
     """
     df = extract_time_series(cluster)
 
     if len(df) == 0:
-        return {
-            'regimes':     [],
-            'transitions': [],
-            'prediction':  'unknown'
-        }
+        return {'regimes': [], 'transitions': [], 'prediction': 'unknown'}
 
     transitions = detect_regime_transitions(df)
     prediction  = predict_next_regime(df)
 
-    # Set dominant regime on the cluster object
-    cluster.dominant_regime = df['regime'].value_counts().idxmax()
+    # Only set dominant_regime if not already set by hotspot_validator
+    current_regime = getattr(cluster, 'dominant_regime', 'unknown')
+    if not current_regime or current_regime == 'unknown':
+        cluster.dominant_regime = df['regime'].value_counts().idxmax()
 
     return {
         'regimes':     df['regime'].tolist(),
         'transitions': transitions,
-        'prediction':  prediction
+        'prediction':  prediction,       # ← this is "next regime"
     }
