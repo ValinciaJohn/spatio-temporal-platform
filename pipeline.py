@@ -12,6 +12,35 @@ from state_store import update_state, APP_STATE
 from cluster_evolution import snapshot_registry as evo_snapshot, update_evolution
 from visualizer import plot_heatmap
 
+
+def _reset_consumer_to_latest(topic='traffic_stream', bootstrap_servers='localhost:9092'):
+    """
+    Seek every partition of `topic` to the latest offset before the pipeline
+    starts consuming.  This prevents replaying stale messages (e.g. Beijing
+    test data) that were committed in a previous run.
+    """
+    try:
+        from kafka import KafkaConsumer, TopicPartition
+        tmp = KafkaConsumer(
+            bootstrap_servers=bootstrap_servers,
+            group_id='trafix_pipeline',          # must match kafka_consumer.py group_id
+            enable_auto_commit=False,
+        )
+        partitions = tmp.partitions_for_topic(topic)
+        if partitions:
+            tps = [TopicPartition(topic, p) for p in partitions]
+            tmp.assign(tps)
+            tmp.seek_to_end(*tps)
+            for tp in tps:
+                offset = tmp.position(tp)
+                tmp.commit({tp: tmp.position(tp)})
+                print(f'[PIPELINE] Reset {tp} → offset {offset} (latest)')
+        tmp.close()
+        print('[PIPELINE] Consumer offsets reset to latest — no stale replay.')
+    except Exception as e:
+        print(f'[PIPELINE] Offset reset skipped ({e})')
+
+
 try:
     from incremental_cluster import update_clusters
 except ImportError:
@@ -71,6 +100,7 @@ def build_cluster_summary(registry, hotspot_results, predictions):
 def main():
     global registry, first_run
     print('[PIPELINE] Starting...')
+    _reset_consumer_to_latest()   # ← skip any stale/Beijing messages from prior runs
 
     while True:
         print('\n[PIPELINE] Reading batch from Kafka...')

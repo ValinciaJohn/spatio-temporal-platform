@@ -46,9 +46,9 @@ export default function ClusterTable({ summary }) {
                 <td>
                   {c.is_hotspot
                     ? <span className="hotspot-yes">● YES</span>
-                    : <span className="hotspot-no">—</span>}
+                    : <span className="hotspot-no">● NO</span>}
                 </td>
-                <td><RegimeBadge regime={c.predicted_next} /></td>
+                <td><RegimeBadge regime={c.predicted || c.regime} /></td>
                 <td className="mono-val">{(c.avg_speed ?? 0).toFixed(1)}</td>
                 <td className="mono-val">{(c.centroid_lat ?? 0).toFixed(4)}</td>
                 <td className="mono-val">{(c.centroid_lon ?? 0).toFixed(4)}</td>
