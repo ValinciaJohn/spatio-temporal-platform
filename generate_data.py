@@ -73,12 +73,13 @@ def generate_cluster_points(centre_lat, centre_lon, n, zone_type, label,
         base = get_base_speed(zone_type, hour)
 
         if zone_type == 'anomaly':
-            if random.random() < 0.4:
-                speed   = max(1.0, min(5.0,   random.gauss(3, 1.5)))
-                density = max(80.0, min(150.0, random.gauss(110, 10)))
+            # Bimodal: 50% ultra-slow gridlock, 50% sudden fast — maximises z-score
+            if random.random() < 0.5:
+                speed   = max(0.5, min(4.0,   random.gauss(2, 0.8)))   # near-stopped
+                density = max(90.0, min(150.0, random.gauss(120, 8)))   # very dense
             else:
-                speed   = max(50.0, min(120.0, random.gauss(75, 15)))
-                density = max(5.0,  min(30.0,  random.gauss(12, 4)))
+                speed   = max(60.0, min(120.0, random.gauss(90, 12)))   # sudden fast
+                density = max(3.0,  min(20.0,  random.gauss(8, 3)))     # nearly empty
         elif zone_type in ('hotspot_a', 'hotspot_b', 'hotspot_c'):
             speed   = max(1.0, min(15.0,  base + random.gauss(0, 1.5)))
             density = max(80.0, min(150.0, 120 + random.gauss(0, 10)))
@@ -168,7 +169,7 @@ def write_csv(rows, filepath):
     print(f'[DATA] Written {len(rows)} rows → {filepath}')
 
 
-def main(n_points=10000, output='data/gps_data.csv'):
+def main(n_points=50000, output='data/gps_data.csv'):
     start_ts = 1700000000.0
     random.seed(42)
 
@@ -185,17 +186,20 @@ def main(n_points=10000, output='data/gps_data.csv'):
         # 3 hotspot zones — geographically separated so DBSCAN keeps them distinct
         # A: Town Hall Jn — central, both peaks
         {'coords': (11.0140, 76.9620), 'type': 'hotspot_a', 'label': 'townhall_jn',
-         'spread': 0.0005, 'budget_pct': 0.12},
+         'spread': 0.0008, 'budget_pct': 0.15},
         # B: Ukkadam — southwest, morning dominant (0.55km from A)
         {'coords': (11.0060, 76.9480), 'type': 'hotspot_b', 'label': 'ukkadam_jn',
-         'spread': 0.0006, 'budget_pct': 0.08},
+         'spread': 0.0008, 'budget_pct': 0.10},
         # C: Singanallur — east, evening dominant (1.8km from A)
         {'coords': (11.0100, 76.9950), 'type': 'hotspot_c', 'label': 'singanallur_jn',
-         'spread': 0.0005, 'budget_pct': 0.06},
+         'spread': 0.0008, 'budget_pct': 0.08},
 
-        # Anomaly zone
+        # Anomaly zone — tight spread so DBSCAN clusters them & trajectory_miner detects
         {'coords': (11.0270, 76.9600), 'type': 'anomaly', 'label': 'airport_approach',
-         'spread': 0.004, 'budget_pct': 0.08},
+         'spread': 0.0015, 'budget_pct': 0.12},
+        # Second anomaly zone — bimodal speed pattern at RS Puram junction
+        {'coords': (11.0085, 76.9625), 'type': 'anomaly', 'label': 'rspuram_jn_anomaly',
+         'spread': 0.0012, 'budget_pct': 0.08},
 
         # Shift zones — ONLY in first/second half of day → drift
         {'coords': (11.0400, 76.9450), 'type': 'shift_early', 'label': 'college_morning',

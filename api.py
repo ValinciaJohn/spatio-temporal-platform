@@ -126,13 +126,7 @@ SERVICE_COMMANDS = {
         "cmd": [sys.executable, os.path.join(BASE_DIR, "pipeline.py")],
         "cwd": BASE_DIR,
     },
-    "uvicorn": {
-        "cmd": [
-            sys.executable, "-m", "uvicorn",
-            "api:app", "--host", "0.0.0.0", "--port", "8000", "--reload",
-        ],
-        "cwd": BASE_DIR,
-    },
+
 }
 
 _procs: dict[str, subprocess.Popen] = {}
@@ -213,7 +207,16 @@ def get_service_logs(svc_id: str, lines: int = 40):
 @app.get("/api/summary")
 def get_summary():
     state = read_state()
-    return state.get("cluster_summary", [])
+    clusters = state.get("cluster_summary", [])
+    # Annotate each cluster with a resolved human-readable location name
+    for c in clusters:
+        lat = c.get("centroid_lat")
+        lon = c.get("centroid_lon")
+        if lat is not None and lon is not None:
+            c["location_name"] = resolve_location(lat, lon)
+        else:
+            c["location_name"] = "Unknown"
+    return clusters
 
 
 @app.get("/api/alerts")
@@ -230,6 +233,9 @@ def get_evolution():
     cluster_map = _build_cluster_map(state)
     events = state.get("evolution_log", [])
     for ev in events:
+        # dashboard.py reads ev.get('text', ...) — rewrite both fields
+        if "text" in ev:
+            ev["text"] = _rewrite_alert(ev["text"], cluster_map)
         if "formatted" in ev:
             ev["formatted"] = _rewrite_alert(ev["formatted"], cluster_map)
     return events
@@ -238,24 +244,30 @@ def get_evolution():
 @app.get("/api/stats")
 def get_stats():
     state = read_state()
-    eval_scores  = state.get("eval_scores", {})
-    registry     = state.get("registry", {})
-    anomalies    = state.get("anomalies", [])
-    drift_events = state.get("drift_events", [])
+    eval_scores   = state.get("eval_scores", {})
+    cluster_summ  = state.get("cluster_summary", [])
+    anomalies     = state.get("anomalies", [])
+    drift_events  = state.get("drift_events", [])
 
-    hotspot_count = sum(1 for c in state.get("cluster_summary", []) if c.get("is_hotspot"))
+    hotspot_count = sum(1 for c in cluster_summ if c.get("is_hotspot"))
+
+    # stability_now is preferred by the dashboard, falling back to stability
+    stability_now = eval_scores.get("stability_now", eval_scores.get("stability", 1.0))
 
     return {
-        "clusters":     len(registry),
-        "hotspots":     hotspot_count,
-        "anomalies":    len(anomalies),
-        "batches":      state.get("total_batches", 0),
-        "drift_events": len(drift_events),
-        "silhouette":   round(eval_scores.get("silhouette", 0.0), 3),
-        "stability":    round(eval_scores.get("stability", 1.0), 3),
-        "noise_pct":    round(eval_scores.get("noise_pct", 0.0), 1),
-        "last_updated": state.get("last_updated", 0),
-        "throughput":   state.get("throughput", 0.0),
+        # cluster count from cluster_summary (matches dashboard update_stats)
+        "clusters":       len(cluster_summ),
+        "hotspots":       hotspot_count,
+        "anomalies":      len(anomalies),
+        "batches":        state.get("total_batches", 0),
+        "drift_events":   len(drift_events),
+        "silhouette":     round(eval_scores.get("silhouette", 0.0), 3),
+        "db_index":       round(eval_scores.get("db_index",   0.0), 3),
+        "stability":      round(eval_scores.get("stability",  1.0), 3),
+        "stability_now":  round(stability_now, 3),
+        "noise_pct":      round(eval_scores.get("noise_pct",  0.0), 1),
+        "last_updated":   state.get("last_updated", 0),
+        "throughput":     state.get("throughput", 0.0),
     }
 
 
@@ -273,9 +285,17 @@ def get_drift():
     state = read_state()
     eval_scores  = state.get("eval_scores", {})
     drift_events = state.get("drift_events", [])
-    stability    = eval_scores.get("stability", 1.0)
 
-    label = "STABLE" if stability >= 0.7 else "UNSTABLE" if stability >= 0.55 else "DRIFTING"
+    # Match dashboard logic: prefer stability_now, fall back to stability
+    stability = eval_scores.get("stability_now", eval_scores.get("stability", 1.0))
+
+    # Thresholds match dashboard update_drift_panel: >0.7 STABLE, >0.4 UNSTABLE, else DRIFTING
+    if stability > 0.7:
+        label = "STABLE"
+    elif stability > 0.4:
+        label = "UNSTABLE"
+    else:
+        label = "DRIFTING"
 
     return {
         "stability":    round(stability, 3),
@@ -283,6 +303,22 @@ def get_drift():
         "drift_count":  len(drift_events),
         "drift_events": drift_events[-10:],
     }
+
+
+@app.get("/api/anomalies")
+def get_anomalies():
+    """Raw anomaly list — used by dashboard alert feed for colour-coding."""
+    state = read_state()
+    cluster_map = _build_cluster_map(state)
+    anomalies = state.get("anomalies", [])
+    # Rewrite location references if anomalies are strings; pass through dicts as-is
+    result = []
+    for a in anomalies:
+        if isinstance(a, str):
+            result.append(_rewrite_alert(a, cluster_map))
+        else:
+            result.append(a)
+    return result
 
 
 @app.get("/api/health")

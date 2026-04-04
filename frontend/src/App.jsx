@@ -46,6 +46,7 @@ const SERVICES = [
     cmd: "pipeline",
     color: "var(--accent)",
   },
+
 ];
 
 function ServicesPanel() {
@@ -253,7 +254,7 @@ export default function App() {
       default:
         return (
           <>
-            <StatsBar stats={stats} summary={summary} />
+            <StatsBar stats={stats} />
             <main className="main-grid">
               <div className="col-left">
                 <MapPanel tick={tick} />
@@ -277,7 +278,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="sidebar-logo">
           <span className="logo-hex">⬡</span>
-          {!sidebarCollapsed && <span className="logo-text">STRIX</span>}
+          {!sidebarCollapsed && <span className="logo-text">TRAFIX</span>}
         </div>
 
         <nav className="sidebar-nav">
@@ -326,13 +327,14 @@ export default function App() {
             <h1 className="title">
               {NAV_ITEMS.find(n => n.id === activeView)?.label || "TRAFFIC INTELLIGENCE"}
             </h1>
-            <p className="subtitle">STRIX · Spatio-Temporal Mining Platform · Coimbatore, TN</p>
+            <p className="subtitle">Spatio-Temporal Mining Platform · Coimbatore, TN</p>
           </div>
-            <div className="topbar-right">
+          <div className="topbar-right">
             <div className={`live-badge ${isLive ? "live" : "offline"}`}>
               <span className="pulse-dot" />
               {isLive ? "LIVE" : "OFFLINE"}
             </div>
+  
           </div>
         </header>
 
@@ -341,7 +343,7 @@ export default function App() {
         </div>
 
         <footer className="footer">
-          STRIX · Spatio-Temporal Mining Platform · ST-DBSCAN + Kafka + DTW · Ref: Shekhar et al. 2015
+          Spatio-Temporal Mining Platform · ST-DBSCAN + Kafka + DTW · Akila · Valincia · 
         </footer>
       </div>
     </div>
