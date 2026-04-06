@@ -4,6 +4,7 @@ from composite_distance import composite_distance
 from config import EPS, MIN_PTS
 import time
 
+# Finds neighboring points within eps distance using composite distance (with spatial pruning)
 def region_query(points, point, eps):
 
     neighbors = []
@@ -19,6 +20,7 @@ def region_query(points, point, eps):
 
     return neighbors
 
+# Expands a cluster from a core point by iteratively adding density-reachable neighbors
 def expand_cluster(points: List[TrafficPoint],
                    point: TrafficPoint,
                    neighbors: List[TrafficPoint],
@@ -48,7 +50,8 @@ def expand_cluster(points: List[TrafficPoint],
 
         if current.cluster_id == -1:
             current.cluster_id = cluster_id
-            
+    
+# Main ST-DBSCAN algorithm that assigns cluster IDs and builds cluster structures        
 def run_clustering(points: List[TrafficPoint],
                    eps: float = EPS,
                    min_pts: int = MIN_PTS):

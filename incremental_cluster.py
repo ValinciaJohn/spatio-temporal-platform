@@ -1,6 +1,6 @@
 from composite_distance import composite_distance
 
-
+# Assigns a new incoming point to the closest existing cluster based on composite distance
 def find_cluster_for_point(point, clusters, eps):
     """
     Assign new point to an existing cluster if within eps distance.

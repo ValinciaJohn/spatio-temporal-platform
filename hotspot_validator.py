@@ -1,24 +1,3 @@
-# hotspot_validator.py — Z-SCORE EDITION
-#
-# Root cause of persistent hotspot=0:
-#   With KAFKA_BATCH_SIZE=500 and 6000 total data points,
-#   each batch gets ~500/6000 = 8% of total points.
-#   A hotspot zone with 10% of data → only 4-5 hotspot points per batch.
-#   Spread across a cluster of ~100 points = 3-5% hotspot fraction.
-#   The old threshold of 25% was NEVER reachable with this batch size.
-#
-# Fix: Z-SCORE BASED DETECTION
-#   Compare each cluster's mean speed and mean density against the
-#   distribution of ALL cluster means in this batch.
-#   A cluster is a hotspot if its speed z-score < -1.5 AND/OR
-#   its density z-score > 1.5 (anomalously slow + dense vs peers).
-#   This works even with 3-4 hotspot points because the CLUSTER MEAN
-#   is what matters, and 4 points averaging 5 km/h is clearly an
-#   outlier vs other clusters averaging 30-40 km/h.
-#
-# Regime classification uses absolute thresholds on cluster mean
-# (not point voting) since means are stable even with sparse data.
-
 import math
 from typing import Dict
 from shared_types import Cluster
@@ -32,18 +11,18 @@ except ImportError:
 HOTSPOT_SPEED_Z   = -1.5   # anomalously SLOW  (negative = below mean)
 HOTSPOT_DENSITY_Z =  1.5   # anomalously DENSE (positive = above mean)
 
-
+# Computes average of a list of values
 def _mean(values):
     return sum(values) / len(values) if values else 0.0
 
-
+# Computes standard deviation to measure variation
 def _std(values, mean):
     if len(values) < 2:
         return 1.0   # avoid div-by-zero; treat as no deviation
     variance = sum((v - mean) ** 2 for v in values) / len(values)
     return math.sqrt(variance) if variance > 0 else 1.0
 
-
+# Calculates average speed, density, and flow for a cluster
 def compute_cluster_stats(cluster: Cluster):
     n           = len(cluster.points)
     avg_speed   = _mean([p.speed   for p in cluster.points])
@@ -51,7 +30,7 @@ def compute_cluster_stats(cluster: Cluster):
     avg_flow    = _mean([p.flow    for p in cluster.points])
     return avg_speed, avg_density, avg_flow
 
-
+# Classifies traffic state (gridlock, congested, etc.) based on averages
 def classify_regime_from_mean(avg_speed: float, avg_density: float) -> str:
     """
     Absolute-threshold regime from cluster mean.
@@ -69,7 +48,7 @@ def classify_regime_from_mean(avg_speed: float, avg_density: float) -> str:
         return 'slow'
     return 'free_flow'
 
-
+# Main function: detects statistically significant hotspots using z-scores
 def validate_hotspots(clusters: Dict[int, Cluster]) -> Dict[int, dict]:
     """
     MAIN EXPORT — called by pipeline.py every batch.

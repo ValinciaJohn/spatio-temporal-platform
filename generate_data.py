@@ -1,12 +1,5 @@
-# generate_data.py — FINAL (timestamp-sorted output)
-#
-# Critical change: rows are sorted by timestamp before writing.
-# This means the Kafka producer streams data chronologically —
-# early batches see morning traffic (college_morning hotspot active),
-# later batches see evening traffic (mall_evening hotspot active).
-# This creates genuine centroid shifts between time windows → drift fires.
-#
-# With sorted streaming:
+# generate_data.py 
+
 #   Batches 1-50:   morning clusters dominate → certain centroid positions
 #   Batches 51-100: evening clusters emerge   → centroids shift → DRIFT
 #   Hotspots rotate: A dominates morning, B/C more visible in evening
@@ -16,7 +9,7 @@ import csv
 import os
 import argparse
 
-
+# Determines realistic base speed for each zone based on peak vs non-peak hours
 def get_base_speed(zone_type, hour):
     is_peak = (8 <= hour <= 10) or (17 <= hour <= 20)
     profiles = {
@@ -35,7 +28,7 @@ def get_base_speed(zone_type, hour):
     peak_spd, free_spd = profiles.get(zone_type, (30, 50))
     return peak_spd if is_peak else free_spd
 
-
+# Generates timestamps for each zone to simulate time-based traffic patterns (morning/evening peaks, shifts)
 def ts_for_zone(zone_type, start_ts, n):
     if zone_type == 'hotspot_a':
         # Both peaks — present all day
@@ -60,6 +53,7 @@ def ts_for_zone(zone_type, start_ts, n):
         return [start_ts + random.uniform(0, 86400) for _ in range(n)]
 
 
+# Creates clustered data points with spatial spread and assigns traffic features (speed, density, flow)
 def generate_cluster_points(centre_lat, centre_lon, n, zone_type, label,
                              start_ts, spread=0.003):
     results = []
@@ -90,6 +84,7 @@ def generate_cluster_points(centre_lat, centre_lon, n, zone_type, label,
             speed   = max(1.0,  min(120.0, base + random.gauss(0, 3)))
             density = max(1.0,  min(150.0, 150/max(base,1) + random.gauss(0, 3)))
 
+        # Computes traffic flow using speed-density relationship with added noise for realism
         flow = max(0.1, min(60.0, (speed * density) / 60 + random.gauss(0, 1)))
         results.append({
             'id':        f'{label}_pt_{i:04d}',
@@ -102,7 +97,7 @@ def generate_cluster_points(centre_lat, centre_lon, n, zone_type, label,
         })
     return results
 
-
+# Generates random scattered points (noise) to simulate real-world irregular data
 def generate_noise_points(n, lat_range, lon_range, start_ts):
     corners = [
         (lat_range[0], lat_range[0]+0.01, lon_range[0], lon_range[0]+0.01),
@@ -126,6 +121,7 @@ def generate_noise_points(n, lat_range, lon_range, start_ts):
     return results
 
 
+# Simulates lifecycle of a traffic cluster across phases (born → growing → stable → shrinking → dead)
 def generate_evolution_cluster(centre_lat, centre_lon, label, start_ts, phase):
     phase_config = {
         'born':      (50,  15, 60,   0),
@@ -151,11 +147,12 @@ def generate_evolution_cluster(centre_lat, centre_lon, label, start_ts, phase):
         })
     return results
 
-
+# Sorts all data by timestamp and writes to CSV for chronological streaming
 def write_csv(rows, filepath):
     os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
-    # ── SORT BY TIMESTAMP so producer streams chronologically ─────────────
-    rows.sort(key=lambda r: r['timestamp'])
+
+    rows.sort(key=lambda r: r['timestamp'])  #ensures time-ordered streaming (drift simulation)
+    
     # Convert timestamp to string after sorting
     for r in rows:
         r['timestamp'] = str(r['timestamp'])
@@ -168,7 +165,7 @@ def write_csv(rows, filepath):
         writer.writerows(rows)
     print(f'[DATA] Written {len(rows)} rows → {filepath}')
 
-
+# Controls full data generation: zones, hotspots, anomalies, drift, evolution, and noise
 def main(n_points=50000, output='data/gps_data.csv'):
     start_ts = 1700000000.0
     random.seed(42)

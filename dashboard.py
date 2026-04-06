@@ -1,4 +1,4 @@
-# dashboard.py — FINAL with Drift Detection Panel
+# dashboard.py 
 
 import time
 from dash import Dash, dcc, html, Input, Output, dash_table
