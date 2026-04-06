@@ -1,14 +1,14 @@
-🚦 Real-Time Spatiotemporal Traffic Intelligence System
+##🚦 Real-Time Spatiotemporal Traffic Intelligence System
 
 ![WhatsApp Image 2026-04-06 at 9 44 01 PM](https://github.com/user-attachments/assets/1d0e18fe-df31-4bf8-8a19-93b8469eb549)
 
-📌 Overview
+# 📌 Overview
 
 This project implements a real-time traffic intelligence platform that transforms streaming GPS data into actionable insights about traffic behavior.
 
 Instead of treating location data in isolation, the system models traffic as a spatiotemporal phenomenon, integrating space, time, and traffic attributes to detect congestion, identify hotspots, analyze movement patterns, and track how traffic evolves over time.
 
-🧠 Approach
+# 🧠 Approach
 
 Traffic patterns are inherently dependent on spatial proximity, temporal continuity, and behavioral attributes.
 To capture this, the system is built around:
@@ -23,7 +23,7 @@ Each stage progressively refines raw data into meaningful traffic intelligence.
 
 <img width="1408" height="432" alt="Gemini_Generated_Image_l6hd6kl6hd6kl6hd" src="https://github.com/user-attachments/assets/fa79ecc9-72e6-461a-a05d-9780f89eb3e5" />
 
-🔑 Core Functionality
+# 🔑 Core Functionality
 Spatiotemporal Similarity
 Composite distance combining location, time, and traffic features
 Traffic Clustering
@@ -40,7 +40,8 @@ Incremental Updates
 Efficient real-time updates without full recomputation
 Visualization Dashboard
 Live monitoring of clusters, hotspots, and traffic conditions
-🖥️ System Interaction
+
+# 🖥️ System Interaction
 
 The system is designed for interactive execution and monitoring:
 
@@ -52,14 +53,14 @@ Monitor outputs in real time
 
 This ensures the entire workflow can be controlled without manual terminal operations.
 
-▶️ Running the System
+# ▶️ Running the System
 
 Start the application using two terminals:
 
-# Backend (FastAPI)
+Backend (FastAPI)
 uvicorn api:app --host 127.0.0.1 --port 8000 --reload
 
-# Frontend (UI)
+Frontend (UI)
 npm run dev
 
 Once running:
@@ -67,7 +68,8 @@ Once running:
 Data streaming is initiated from the frontend
 The pipeline executes automatically
 Results are updated live on the dashboard
-📊 Data Representation
+
+# 📊 Data Representation
 
 Each data point is modeled as a spatiotemporal traffic observation:
 
@@ -79,7 +81,7 @@ Flow
 
 Synthetic data is used to simulate realistic traffic scenarios including congestion peaks, anomalies, and evolving traffic patterns.
 
-📚 Research Alignment
+# 📚 Research Alignment
 
 This system is grounded in spatiotemporal data mining principles, where each component aligns with a theoretical concept:
 
