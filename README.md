@@ -1,4 +1,7 @@
 🚦 Real-Time Spatiotemporal Traffic Intelligence System
+
+![WhatsApp Image 2026-04-06 at 9 44 01 PM](https://github.com/user-attachments/assets/1d0e18fe-df31-4bf8-8a19-93b8469eb549)
+
 📌 Overview
 
 This project implements a real-time traffic intelligence platform that transforms streaming GPS data into actionable insights about traffic behavior.
@@ -18,7 +21,7 @@ Change detection
 
 Each stage progressively refines raw data into meaningful traffic intelligence.
 
-<img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/971905a2-9a3b-4b6d-820a-492ec94be54a" />
+<img width="1408" height="432" alt="Gemini_Generated_Image_l6hd6kl6hd6kl6hd" src="https://github.com/user-attachments/assets/fa79ecc9-72e6-461a-a05d-9780f89eb3e5" />
 
 🔑 Core Functionality
 Spatiotemporal Similarity
