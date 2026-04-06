@@ -1,4 +1,3 @@
-# api.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -90,7 +89,6 @@ def _rewrite_alert(alert: str, cluster_map: dict) -> str:
         return m.group(0)
     alert = re.sub(r'[Cc]luster\s+(\d+)', replace_cluster, alert)
 
-    # Replace raw coordinate pairs like (11.01, 76.9951)
     def replace_coords(m):
         lat, lon = float(m.group(1)), float(m.group(2))
         return f"near {resolve_location(lat, lon)}"

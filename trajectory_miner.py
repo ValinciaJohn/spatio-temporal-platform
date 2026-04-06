@@ -1,18 +1,5 @@
-# trajectory_miner.py — FIXED
-#
-# Bug fixed 1: build_trajectories used a 60-second gap threshold.
-#   Synthetic data timestamps are random.uniform(0, 86400) so consecutive
-#   sorted points are ~17 seconds apart on average — but occasionally
-#   hundreds of seconds apart, splitting every trajectory to length 1
-#   and discarding all of them (< 3 points check).
-#   Fix: raise gap threshold to 3600 seconds (1 hour), matching the
-#   hourly batch granularity of the data.
-#
-# Bug fixed 2: when DTW is unavailable (dtaidistance not installed),
-#   detect_anomalous_trajectory returned False for everything.
-#   Fix: stat-based fallback — flag a trajectory as anomalous if its
-#   mean speed deviates more than 2 standard deviations from the
-#   cluster trajectory mean.
+#trajectory mining + anomaly detection module
+#Groups points into trajectories based on time continuity
 
 from typing import List
 from shared_types import TrafficPoint, Cluster
@@ -27,7 +14,7 @@ except ImportError:
     print('[trajectory_miner] dtaidistance not installed — using stat-based anomaly fallback.')
 
 
-# ── Trajectory building ───────────────────────────────────────────────────────
+# ── Trajectory building ────────────────────────────────────────────────────
 
 def build_trajectories(cluster: Cluster,
                        gap_seconds: float = 3600.0,   # FIXED: was 60

@@ -1,5 +1,3 @@
-# stubs.py  — READ ONLY after Day 1
-
 from shared_types import TrafficPoint, Cluster
 
 # ── VALINCIA'S STUBS (Akila imports these) ─────────────────────────────────

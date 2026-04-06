@@ -1,4 +1,3 @@
-# kafka_consumer.py
 import json
 from typing import List
 from shared_types import TrafficPoint

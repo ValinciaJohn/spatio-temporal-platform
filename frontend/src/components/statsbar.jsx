@@ -1,4 +1,3 @@
-// src/components/StatsBar.jsx
 export default function StatsBar({ stats, summary }) {
   const s = stats || {};
 
@@ -11,7 +10,7 @@ export default function StatsBar({ stats, summary }) {
     ? new Date(s.last_updated * 1000).toLocaleTimeString()
     : "—";
 
-  // Derive counts directly from summary array — avoids the registry vs cluster_summary mismatch
+  // Derive counts directly from summary array 
   const clusterCount = Array.isArray(summary) ? summary.length : (s.clusters ?? 0);
   const hotspotCount = Array.isArray(summary)
     ? summary.filter(c => c.is_hotspot).length

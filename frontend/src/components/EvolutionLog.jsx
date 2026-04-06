@@ -1,4 +1,3 @@
-// src/components/EvolutionLog.jsx
 export default function EvolutionLog({ evolution }) {
   const items = (evolution || []).slice(-30).reverse();
 

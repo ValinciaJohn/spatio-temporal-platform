@@ -1,5 +1,3 @@
-// src/components/RegimeChart.jsx
-
 const REGIME_COLORS = {
   free_flow: { bg: "#071A13", text: "#6EE7B7", border: "#00C896" },
   slow:      { bg: "#1C1A06", text: "#FDE68A", border: "#F59E0B" },
@@ -43,7 +41,7 @@ export default function RegimeChart({ summary }) {
     );
   }
 
-  // Match dashboard.py: show up to 12 clusters
+ 
   const items = summary.slice(0, 12);
 
   return (

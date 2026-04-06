@@ -1,16 +1,5 @@
-# state_store.py — FIXED
-#
-# Bug fixed: read_state() used `global APP_STATE` and then
-# `APP_STATE = json.load(f)` which rebinds the module-level name
-# but any other module that already imported APP_STATE directly
-# (e.g. `from state_store import APP_STATE`) still holds the old
-# dict reference and never sees updates.
-#
-# Fix: always mutate the SAME dict object in-place using .clear()
-# and .update() so all importers see the same live object.
-# pipeline.py uses update_state() which calls write_state() → file.
-# dashboard.py uses get_state() which calls read_state() → file → dict.
-# Both share the same on-disk JSON as the IPC channel.
+# shared memory between pipeline.py and dashboard.py/api.py
+# app_state.json
 
 import json
 import threading

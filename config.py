@@ -4,8 +4,6 @@ import os
 KAFKA_BOOTSTRAP   = os.getenv('KAFKA_BOOTSTRAP', 'localhost:9092')
 KAFKA_TOPIC       = os.getenv('KAFKA_TOPIC',     'traffic_stream')
 KAFKA_GROUP_ID    = os.getenv('KAFKA_GROUP_ID',  'mobility_pipeline')
-# Raised from 500 → 1000 so each batch has more points per cluster
-# More points = stabler cluster means = more reliable hotspot/regime detection
 KAFKA_BATCH_SIZE  = int(os.getenv('KAFKA_BATCH_SIZE', '1000'))
 STREAM_SPEED      = int(os.getenv('STREAM_SPEED', '100'))
 
@@ -21,7 +19,6 @@ AGE_OUT_SEC       = float(os.getenv('AGE_OUT_SEC','1800.0'))
 
 # ── HOTSPOT ────────────────────────────────────────────────────────────────
 HOTSPOT_THRESHOLD = float(os.getenv('HOTSPOT_THRESHOLD','3.5'))
-# Lowered from 8 → 3: z-score method works with fewer points
 HOTSPOT_MIN_SIZE  = int(os.getenv('HOTSPOT_MIN_SIZE',  '3'))
 STUDY_AREA_KM2    = float(os.getenv('STUDY_AREA_KM2', '500.0'))
 

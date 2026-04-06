@@ -1,5 +1,3 @@
-# evaluation.py
-# Owner: Valincia
 # Purpose: Compute clustering quality metrics live each batch
 # Grounded in: Shekhar et al. 2015 - Section 4.4 (clustering validity)
 

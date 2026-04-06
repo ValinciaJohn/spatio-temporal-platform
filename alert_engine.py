@@ -1,8 +1,3 @@
-# alert_engine.py
-# Owner: Valincia
-# Purpose: Generate human-readable alerts from pipeline outputs
-# No external dependencies beyond shared_types
-
 import time
 from typing import Dict, List
 from shared_types import Cluster
@@ -131,7 +126,7 @@ def generate_alerts(clusters: Dict,
     return all_alerts[-20:]
 
 
-# ── Quick self-test ──────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     from shared_types import TrafficPoint, Cluster
 

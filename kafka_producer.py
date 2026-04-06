@@ -1,4 +1,3 @@
-# kafka_producer.py
 import csv
 import json
 import time
@@ -40,7 +39,7 @@ def create_producer(bootstrap_servers='localhost:9092'):
     return KafkaProducer(
         bootstrap_servers=bootstrap_servers,
         value_serializer=lambda v: v.encode('utf-8'),
-        acks=1,              # ← FIXED: wait for leader acknowledgment
+        acks=1,              # wait for leader acknowledgment
         retries=3,           # retry on failure
         linger_ms=10,        # small batch delay for efficiency
         batch_size=16384,    # 16KB batches

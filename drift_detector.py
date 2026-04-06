@@ -1,26 +1,11 @@
-# drift_detector.py — FIXED
-#
-# Bug: detect_drift() used Jaccard similarity on cluster IDs.
-# DBSCAN renumbers clusters 0,1,2... every batch, so ID overlap
-# between consecutive batches is near-random regardless of whether
-# traffic patterns actually changed. Result: stability always ~0.5-0.8,
-# never crossing the threshold → drift never detected.
-#
-# Fix: centroid-movement-based stability.
-# For each cluster in snapshot N, find its nearest centroid match in
-# snapshot N-1. If the matched centroid moved more than DRIFT_DIST_DEG
-# degrees, count it as unstable. Stability = fraction of clusters
-# that are spatially stable. This reflects actual traffic pattern change.
-#
-# Also: snapshot now stores centroid as primary key (rounded to 3dp)
-# so matching survives ID renumbering.
+#comparison of cluster centroids
 
 import math
 import time
 from typing import List
 
 # A cluster centroid must move less than this to be "the same cluster"
-# 0.008 degrees ≈ 900m — realistic for a city junction cluster
+# 0.008 degrees ≈ 900m 
 DRIFT_DIST_DEG   = 0.008
 DRIFT_THRESHOLD  = 0.55   # stability below this → drift
 DRIFT_WINDOW     = 8      # compare over last N snapshots

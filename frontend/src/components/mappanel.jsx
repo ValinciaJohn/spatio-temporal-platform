@@ -1,4 +1,3 @@
-// src/components/MapPanel.jsx
 import { useState, useEffect, useRef } from "react";
 
 const API = "/api";

@@ -1,4 +1,3 @@
-// src/components/DriftPanel.jsx
 export default function DriftPanel({ drift }) {
   const d     = drift || {};
   const label = d.label || "STABLE";

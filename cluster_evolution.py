@@ -1,15 +1,3 @@
-# cluster_evolution.py — FIXED
-#
-# Bug fixed: DBSCAN assigns cluster IDs non-deterministically each batch.
-# Cluster "5" in batch N is NOT the same spatial cluster as "5" in batch N+1.
-# Old code compared by ID → every cluster looked BORN every single batch,
-# SHRINKING/DEAD/GROWING never fired.
-#
-# Fix: match clusters across snapshots by CENTROID PROXIMITY (nearest
-# neighbour within MAX_CENTROID_DIST degrees ~1.1 km). If a previous
-# cluster centroid is within that radius, treat it as the same cluster.
-# Only then compare sizes for GROWING/STABLE/SHRINKING/DEAD.
-
 import time
 import math
 from dataclasses import dataclass
@@ -133,7 +121,6 @@ def compute_evolution(prev_snap: dict,
     return events
 
 
-# ── Formatting ────────────────────────────────────────────────────────────────
 
 STATE_ICONS = {
     'BORN':      '🟢',
@@ -151,8 +138,6 @@ def format_event(event: EvolutionEvent) -> str:
         f'  {event.size} pts  [{event.regime}]'
     )
 
-
-# ── Main export ───────────────────────────────────────────────────────────────
 
 def update_evolution(prev_snap: dict,
                      curr_snap: dict,
@@ -183,8 +168,6 @@ def update_evolution(prev_snap: dict,
 
     return log[-50:]   # cap
 
-
-# ── Utility ───────────────────────────────────────────────────────────────────
 
 def get_size_history(cluster_id: int, snapshot_history: list) -> List[dict]:
     history = []

@@ -1,4 +1,3 @@
-// src/components/AlertFeed.jsx
 function getAlertClass(alert) {
   const a = (alert || "").toLowerCase();
   if (a.includes("hotspot"))   return "hotspot";

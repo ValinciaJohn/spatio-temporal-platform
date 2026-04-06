@@ -1,5 +1,3 @@
-# dashboard.py 
-
 import time
 from dash import Dash, dcc, html, Input, Output, dash_table
 import plotly.graph_objects as go

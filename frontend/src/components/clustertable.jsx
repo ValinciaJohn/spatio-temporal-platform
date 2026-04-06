@@ -1,4 +1,3 @@
-// src/components/ClusterTable.jsx
 function RegimeBadge({ regime }) {
   const r = regime || "unknown";
   return <span className={`regime-badge regime-${r}`}>{r}</span>;

@@ -1,7 +1,3 @@
-# pipeline.py — FINAL
-# Order fix: hotspot_validator runs BEFORE analyze_mvts so
-# dominant_regime set by validator is not overwritten by MVTS.
-
 from kafka_consumer import get_next_batch
 from st_clustering import run_clustering
 from hotspot_validator import validate_hotspots
@@ -100,7 +96,7 @@ def build_cluster_summary(registry, hotspot_results, predictions):
 def main():
     global registry, first_run
     print('[PIPELINE] Starting...')
-    _reset_consumer_to_latest()   # ← skip any stale/Beijing messages from prior runs
+    _reset_consumer_to_latest()   # ← skip any stale messages from prior runs
 
     while True:
         print('\n[PIPELINE] Reading batch from Kafka...')
@@ -132,14 +128,12 @@ def main():
         noise_pct    = round(100.0 * len(noise_points) / total_pts, 1) if total_pts else 0.0
         print(f'[PIPELINE] Clusters: {len(registry)} | Noise: {len(noise_points)} ({noise_pct}%)')
 
-        # ── 2. Hotspot validation (MUST run before analyze_mvts) ───────────
+        # ── 2. Hotspot validation  ───────────
         hotspot_results = validate_hotspots(registry)
         hotspot_count   = sum(1 for v in hotspot_results.values() if v.get('is_hotspot'))
         print(f'[PIPELINE] Hotspots: {hotspot_count}')
 
         # ── 3. Trajectory mining + MVTS prediction ─────────────────────────
-        # analyze_mvts runs AFTER hotspot_validator so it won't overwrite
-        # the regime that validator correctly set via z-score detection
         all_anomalies = []
         predictions   = {}
 

@@ -1,18 +1,5 @@
-# mvts_analyzer.py — FIXED
-#
-# Bug 1: analyze_mvts() overwrote cluster.dominant_regime with the MVTS
-#   regime AFTER hotspot_validator had correctly set it to 'congested'
-#   or 'gridlock'. This reset all regime classifications back to free_flow.
-#   Fix: only set dominant_regime if hotspot_validator hasn't set a
-#   meaningful value yet (i.e. still 'unknown').
-#
-# Bug 2: classify_regime() thresholds didn't match hotspot_validator.
-#   gridlock needed speed<10 AND density>80 AND flow<10 — very strict.
-#   With sparse batches, flow is rarely < 10. Now aligned with validator.
-#
-# Bug 3: predict_next_regime() returned current regime when no transitions
-#   observed — fine logically, but meant prediction = current regime always
-#   for small clusters. Now falls back to most common regime in history.
+#classifies trafficpoint into regimes
+#uses Markov chain to predict next regime
 
 from typing import List
 import pandas as pd
@@ -114,7 +101,6 @@ def analyze_mvts(cluster: Cluster) -> dict:
     transitions = detect_regime_transitions(df)
     prediction  = predict_next_regime(df)
 
-    # Only set dominant_regime if not already set by hotspot_validator
     current_regime = getattr(cluster, 'dominant_regime', 'unknown')
     if not current_regime or current_regime == 'unknown':
         cluster.dominant_regime = df['regime'].value_counts().idxmax()
